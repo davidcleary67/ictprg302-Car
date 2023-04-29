@@ -16,6 +16,7 @@ from curses.textpad import Textbox, rectangle
 BLUEWHITE = 1
 BLACKWHITE = 2
 REDWHITE = 3
+YELLOWBLUE = 4
 
 DRAWTIMEOUT = 10000
 
@@ -61,33 +62,47 @@ def drawCar(win, row, col, moveKey = None):
         win.addstr(row + 1, col - 1, chr(32))
 
 def createTrack(rows, cols):
-    left = int((cols / 2) - 10)
+    left = int((cols - TRACKWIDTH) / 2) + 1
     track = []
     for r in range(rows):
         track.append(left)
     return track
 
-curveLeft = False 
+STRAIGHT = 0
+LEFT = 1
+RIGHT = 2
+
+TRACKWIDTH = 15
+curveTrack = STRAIGHT 
 curveCount = 0
 
-def drawTrack(win, track):
-    global curveLeft
+def drawTrack(win, track, cols):
+    global curveTrack
     global curveCount
-    if curveLeft:
+    if curveTrack == LEFT and track[0] > 0:
         newCol = track[0] - 1
-        track.insert(0, newCol)
-        track.pop(-1)
         curveCount -= 1
-        curveLeft = False if curveCount == 0 else True
+        curveTrack = STRAIGHT if curveCount == 0 else curveTrack
+    elif curveTrack == RIGHT and track[0] < (cols - 3) - TRACKWIDTH:
+        newCol = track[0] + 1
+        curveCount -= 1
+        curveTrack = STRAIGHT if curveCount == 0 else curveTrack
     else:
+        newCol = track[0]
         curveCount = int(random.random() * 100)
         if curveCount < 10:
-            curveLeft = True
+            curveTrack = int(random.random() * 2) + 1
+        else:
+            curveTrack = STRAIGHT
+    track.insert(0, newCol)
+    track.pop(-1)
         
     win.erase()
     row = 0
     for col in track:
-        win.addstr(row, col,"|                    |")
+        win.addstr(row, col, "|", curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
+        win.addstr(row, col + 1, " " * TRACKWIDTH, curses.color_pair(YELLOWBLUE))
+        win.addstr(row, col + TRACKWIDTH + 1, "|", curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
         row += 1 
         
 def cursesMain(stdScr):
@@ -95,6 +110,7 @@ def cursesMain(stdScr):
     curses.init_pair(BLUEWHITE, curses.COLOR_BLUE, curses.COLOR_WHITE)
     curses.init_pair(BLACKWHITE, curses.COLOR_BLACK, curses.COLOR_WHITE)
     curses.init_pair(REDWHITE, curses.COLOR_RED, curses.COLOR_WHITE)
+    curses.init_pair(YELLOWBLUE, curses.COLOR_YELLOW, curses.COLOR_BLUE)
     stdScr.bkgd(' ', curses.color_pair(BLUEWHITE))
     rows, cols = getDims(stdScr, False)
     stdScr.nodelay(True)
@@ -108,7 +124,7 @@ def cursesMain(stdScr):
     drawTimer = DRAWTIMEOUT
     while True:
         if drawTimer < 0: 
-            drawTrack(stdScr, track)
+            drawTrack(stdScr, track, cols)
             drawTimer = DRAWTIMEOUT
         drawCar(stdScr, carR, carC, key)
         hideCursor(stdScr, rows, cols)
