@@ -23,6 +23,7 @@ REDBLUE = 6
 BLACKBLUE = 7
 YELLOWBLACK = 8
 GREENWHITE = 9
+MAGENTAWHITE = 10
 
 DRAWTIMEOUT = 10000
 
@@ -53,11 +54,16 @@ def getDims(win, pause):
 def hideCursor(win, rows, cols):
     win.addstr(rows - 1, cols - 1, "")
     
-def drawCar(win, row, col, rows, track, moveKey = None):
+def drawCar(win, row, col, rows, track, health, moveKey = None):
+    global hitEdge
     if col <= track[rows - 2]:
         col = track[rows - 2] + 1
+        hitEdge = LEFT
+        health -= 1
     elif col >= (track[rows - 2] + TRACKWIDTH - 3):
         col = track[rows - 2] + TRACKWIDTH - 4
+        hitEdge = RIGHT
+        health -= 1
     win.addstr(row, col + 1, chr(0x256d) + chr(0x2500) + chr(0x256e), curses.color_pair(WHITEBLUE))
     win.addstr(row + 1, col, chr(0x2593), curses.color_pair(BLACKBLUE))
     win.addstr(row + 1, col + 1, chr(0x2534), curses.color_pair(WHITEBLUE))
@@ -70,7 +76,7 @@ def drawCar(win, row, col, rows, track, moveKey = None):
     elif moveKey == curses.KEY_RIGHT:
         win.addstr(row, col, chr(32), curses.color_pair(BLACKBLUE))
         win.addstr(row + 1, col - 1, chr(32), curses.color_pair(BLACKBLUE))
-    return col
+    return col, health
 
 def createTrack(rows, cols):
     left = int((cols - TRACKWIDTH) / 2) + 1
@@ -82,21 +88,28 @@ def createTrack(rows, cols):
 STRAIGHT = 0
 LEFT = 1
 RIGHT = 2
+SHRINK = 3
+NONE = 4
 
 TRACKWIDTH = 15
 curveTrack = STRAIGHT 
 curveCount = 0
+hitEdge = NONE
 
-def drawInfo(win, cols, fuel, elapsedTime):
+def drawInfo(win, cols, health, fuel, elapsedTime):
     win.addstr(0, 0, "SuniTAFE Rally Driver", curses.color_pair(REDWHITE) | curses.A_BOLD) 
-    win.addstr(0, 22, "Fuel: ", curses.color_pair(GREENWHITE)) 
-    win.addstr(0, 28, chr(0x2661) * fuel, curses.color_pair(GREENWHITE) | curses.A_BOLD) 
-    win.addstr(0, 39, "Time: ", curses.color_pair(GREENWHITE)) 
-    win.addstr(0, 45, elapsedTime, curses.color_pair(GREENWHITE) | curses.A_BOLD) 
+    win.addstr(0, 22, "Health: ", curses.color_pair(GREENWHITE)) 
+    win.addstr(str(health), curses.color_pair(MAGENTAWHITE) | curses.A_BOLD) 
+    win.addstr(" Fuel: ", curses.color_pair(GREENWHITE)) 
+    win.addstr(str(fuel), curses.color_pair(MAGENTAWHITE) | curses.A_BOLD) 
+    win.addstr(" Time: ", curses.color_pair(GREENWHITE)) 
+    win.addstr(elapsedTime, curses.color_pair(MAGENTAWHITE) | curses.A_BOLD) 
 
 def drawTrack(win, track, cols):
     global curveTrack
     global curveCount
+    global TRACKWIDTH
+    global hitEdge
     if curveTrack == LEFT and track[0] > 0:
         newCol = track[0] - 1
         curveCount -= 1
@@ -105,11 +118,15 @@ def drawTrack(win, track, cols):
         newCol = track[0] + 1
         curveCount -= 1
         curveTrack = STRAIGHT if curveCount == 0 else curveTrack
+    elif curveTrack == SHRINK:
+        newCol = track[0]
+        TRACKWIDTH = TRACKWIDTH - 5 if TRACKWIDTH >= 10 else TRACKWIDTH
+        curveTrack = STRAIGHT
     else:
         newCol = track[0]
         curveCount = int(random.random() * 100)
         if curveCount < 10:
-            curveTrack = int(random.random() * 2) + 1
+            curveTrack = int(random.random() * 3) + 1
         else:
             curveTrack = STRAIGHT
     track.insert(0, newCol)
@@ -117,10 +134,16 @@ def drawTrack(win, track, cols):
     
     win.erase()
     row = 1
+    leftEdge = "|"
+    rightEdge = "|"
     for col in track:
-        win.addstr(row, col, "|", curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
+        if row == len(track):
+            leftEdge = "X" if hitEdge == LEFT else "|"
+            rightEdge = "X" if hitEdge == RIGHT else "|"
+            hitEdge = NONE
+        win.addstr(row, col, leftEdge, curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
         win.addstr(row, col + 1, " " * TRACKWIDTH, curses.color_pair(YELLOWBLUE))
-        win.addstr(row, col + TRACKWIDTH + 1, "|", curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
+        win.addstr(row, col + TRACKWIDTH + 1, rightEdge, curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
         row += 1 
 
 
@@ -130,6 +153,7 @@ def cursesMain(stdScr):
     curses.init_pair(BLACKWHITE, curses.COLOR_BLACK, curses.COLOR_WHITE)
     curses.init_pair(REDWHITE, curses.COLOR_RED, curses.COLOR_WHITE)
     curses.init_pair(GREENWHITE, curses.COLOR_GREEN, curses.COLOR_WHITE)
+    curses.init_pair(MAGENTAWHITE, curses.COLOR_MAGENTA, curses.COLOR_WHITE)
     curses.init_pair(YELLOWBLUE, curses.COLOR_YELLOW, curses.COLOR_BLUE)
     curses.init_pair(WHITEBLUE, curses.COLOR_WHITE, curses.COLOR_BLUE)
     curses.init_pair(REDBLUE, curses.COLOR_RED, curses.COLOR_BLUE)
@@ -147,17 +171,20 @@ def cursesMain(stdScr):
   
     carR = rows - 2
     carC = int((cols - 2) / 2)
+    health = 10
     fuel = 10
     key = None
     drawTimer = DRAWTIMEOUT
-    while True:
+    while (health > 0):
         if drawTimer < 0: 
             drawTrack(stdScr, track, cols)
             drawTimer = DRAWTIMEOUT
             currentTime = time.time()
-        elapsedTime = currentTime - startTime
-        drawInfo(stdScr, cols, fuel, f"{int((currentTime - startTime) / 60):02d}:{int((currentTime - startTime) % 60):02d}")
-        carC = drawCar(stdScr, carR, carC, rows, track, key)
+            elapsedTime = int(currentTime - startTime)
+            if elapsedTime % 10 == 0:
+                fuel -= 1
+            drawInfo(stdScr, cols, health, fuel, f"{int(elapsedTime / 60):02d}:{int((currentTime - startTime) % 60):02d}")
+        carC, health = drawCar(stdScr, carR, carC, rows, track, health, key)
         hideCursor(stdScr, rows, cols)
         stdScr.refresh()
         key = stdScr.getch()
@@ -167,6 +194,7 @@ def cursesMain(stdScr):
             carC = carC + 1 if carC < cols - 6 else carC
         drawTimer -= 1
             
+    stdScr.nodelay(False)
     stdScr.addstr(2, 0, "Press any key to continue.")
     stdScr.getch()
     
