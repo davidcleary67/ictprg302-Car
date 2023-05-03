@@ -56,12 +56,13 @@ def hideCursor(win, rows, cols):
     
 def drawCar(win, row, col, rows, track, health, moveKey = None):
     global hitEdge
-    if col <= track[rows - 2]["pos"]:
-        col = track[rows - 2]["pos"] + 1
+    posTrack = track[rows - 2]["pos"]
+    if col <= posTrack:
+        col = posTrack + 1
         hitEdge = LEFT
         health -= 1
-    elif col >= (track[rows - 2]["pos"] + TRACKWIDTH - 3):
-        col = track[rows - 2]["pos"] + TRACKWIDTH - 4
+    elif col >= (posTrack + TRACKWIDTH - 3):
+        col = posTrack + TRACKWIDTH - 4
         hitEdge = RIGHT
         health -= 1
     win.addstr(row, col + 1, chr(0x256d) + chr(0x2500) + chr(0x256e), curses.color_pair(WHITEBLUE))
@@ -129,8 +130,10 @@ def drawTrack(win, track, cols):
             curveTrack = int(random.random() * 3) + 1
         else:
             curveTrack = STRAIGHT
-    foundFuel = int(random.random() * 20) == 1
-    track.insert(0, {"pos" : newCol, "fuel" : foundFuel})
+    newFuel = int(random.random() * 20) == 1
+    if newFuel:
+        fuelPos = int(random.random() * 3) + 1
+    track.insert(0, {"pos" : newCol, "fuel" : fuelPos if newFuel else 0})
     track.pop(-1)
     
     win.erase()
@@ -146,10 +149,25 @@ def drawTrack(win, track, cols):
         win.addstr(row, col, leftEdge, curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
         win.addstr(row, col + 1, " " * TRACKWIDTH, curses.color_pair(YELLOWBLUE))
         win.addstr(row, col + TRACKWIDTH + 1, rightEdge, curses.color_pair(YELLOWBLUE) | curses.A_BOLD)
-        if t["fuel"]:
-            win.addstr(row, col + 1, "F", curses.color_pair(REDWHITE) | curses.A_REVERSE)
+        fuelPos = t["fuel"]
+        if fuelPos > 0:
+            if fuelPos == 1:
+                win.addstr(row, col + 1, "F", curses.color_pair(REDWHITE) | curses.A_REVERSE)
+            elif fuelPos == 2:
+                win.addstr(row, col + int(TRACKWIDTH / 2), "F", curses.color_pair(REDWHITE) | curses.A_REVERSE)
+            else:
+                win.addstr(row, col + TRACKWIDTH, "F", curses.color_pair(REDWHITE) | curses.A_REVERSE)
         row += 1 
 
+def collideFuel(posFuel, posTrack, posCar):
+    collide = False
+    if posFuel > 0:
+        if posFuel == 1 and posCar == posTrack + 1:
+            collide = True
+        elif posFuel == 3 and posCar + 4 == posTrack + TRACKWIDTH:
+            collide = True
+    return collide
+    
 def cursesMain(stdScr):
     stdScr = curses.initscr()
     curses.init_pair(BLUEWHITE, curses.COLOR_BLUE, curses.COLOR_WHITE)
