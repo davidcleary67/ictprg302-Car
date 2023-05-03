@@ -175,15 +175,17 @@ def cursesMain(stdScr):
     fuel = 10
     key = None
     drawTimer = DRAWTIMEOUT
+    prevElapsedTime = -1
     while (health > 0):
         if drawTimer < 0: 
             drawTrack(stdScr, track, cols)
             drawTimer = DRAWTIMEOUT
             currentTime = time.time()
             elapsedTime = int(currentTime - startTime)
-            if elapsedTime % 10 == 0:
+            if (prevElapsedTime != elapsedTime) and (elapsedTime % 10 == 0):
                 fuel -= 1
-            drawInfo(stdScr, cols, health, fuel, f"{int(elapsedTime / 60):02d}:{int((currentTime - startTime) % 60):02d}")
+                prevElapsedTime = elapsedTime
+            drawInfo(stdScr, cols, health, fuel, f"{int(elapsedTime / 60):02d}:{(elapsedTime % 60):02d}")
         carC, health = drawCar(stdScr, carR, carC, rows, track, health, key)
         hideCursor(stdScr, rows, cols)
         stdScr.refresh()
